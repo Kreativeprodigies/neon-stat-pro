@@ -1,35 +1,72 @@
-
-import { GoogleGenAI, Type } from "@google/genai";
+import { HfInference } from "@huggingface/inference";
 import { MatchAnalysis, AITicket, RiskLevel, BuiltSlip, MatchFeed, LottoIntelligence, AviatorFeed, MinesFeed, UsageMetadata } from "../types";
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.API_KEY,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
-    }
-  }
-});
+// Initialize Hugging Face Inference client
+const hf = new HfInference(process.env.HUGGINGFACE_API_KEY || "");
 
+// Default model – can be overridden per use case
+const DEFAULT_MODEL = "mistralai/Mistral-7B-Instruct-v0.3";
+// For heavier tasks use a larger model if available
+const TICKET_MODEL = "meta-llama/Llama-3.1-70B-Instruct"; // requires PRO subscription or higher
+
+// Helper: strip markdown code fences
 const stripMarkdown = (text: string) => {
   return text.replace(/```json\n?|\n?```/g, "").trim();
 };
 
-const getUsage = (response: any): UsageMetadata | undefined => {
-  if (response.usageMetadata) {
-    return {
-      promptTokens: response.usageMetadata.promptTokenCount || 0,
-      candidatesTokens: response.usageMetadata.candidatesTokenCount || 0,
-      totalTokens: response.usageMetadata.totalTokenCount || 0,
-    };
-  }
-  return undefined;
+// Helper: estimate token usage (rough approximation)
+const estimateUsage = (text: string, system?: string): UsageMetadata => {
+  const promptTokens = (system?.length || 0) / 4 + 30; // crude
+  const completionTokens = text.length / 4;
+  return {
+    promptTokens: Math.round(promptTokens),
+    candidatesTokens: Math.round(completionTokens),
+    totalTokens: Math.round(promptTokens + completionTokens),
+  };
 };
+
+// Generic call to Hugging Face text generation
+async function callHuggingFace(
+  userPrompt: string,
+  systemInstruction?: string,
+  temperature: number = 0.2,
+  model: string = DEFAULT_MODEL,
+  jsonResponse: boolean = true
+): Promise<string> {
+  const messages: any[] = [];
+  if (systemInstruction) {
+    messages.push({ role: "system", content: systemInstruction });
+  }
+  messages.push({ role: "user", content: userPrompt });
+
+  // For JSON output, ask the model to respond only with valid JSON
+  const finalPrompt = jsonResponse
+    ? `${userPrompt}\n\nIMPORTANT: Output ONLY valid JSON, no other text.`
+    : userPrompt;
+
+  try {
+    const response = await hf.chatCompletion({
+      model,
+      messages: [
+        ...(systemInstruction ? [{ role: "system", content: systemInstruction }] : []),
+        { role: "user", content: finalPrompt },
+      ],
+      temperature,
+      max_tokens: 4096,
+      response_format: jsonResponse ? { type: "json_object" } : undefined, // supported by some models
+    });
+
+    return response.choices[0]?.message?.content || "";
+  } catch (error) {
+    console.error("Hugging Face call error:", error);
+    throw error;
+  }
+}
 
 export const fetchLiveMatches = async (): Promise<MatchFeed> => {
   try {
     const today = new Date().toISOString().split('T')[0];
-    const prompt = `CRITICAL INSTRUCTION: You MUST use the Google Search tool to find the REAL, ACTUAL soccer schedule for today (${today}) and tomorrow. DO NOT hallucinate or invent matches.
+    const prompt = `CRITICAL INSTRUCTION: You must use your knowledge to find the REAL, ACTUAL soccer schedule for today (${today}) and tomorrow. DO NOT hallucinate or invent matches.
 
     Find 15 major upcoming or live top-tier SOCCER (Football) matches for today and tomorrow. 
     Strictly include soccer leagues only: Premier League, La Liga, Serie A, Bundesliga, Champions League, and South African PSL.
@@ -42,68 +79,49 @@ export const fetchLiveMatches = async (): Promise<MatchFeed> => {
     5. Estimate "confidence" based on the predictability of the match.
     6. Identify "value" where your calculated probability is higher than typical market odds.
     
-    DO NOT include any other sports. Provide full probabilities and confidence scores. Output JSON.`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
-      contents: prompt,
-      config: {
-        systemInstruction: "You are NEON-STAT, an elite quantitative sports betting AI. You analyze soccer matches with cold, calculated precision. You focus on data, form, and tactical mismatches.",
-        temperature: 0.2,
-        tools: [{ googleSearch: {} }],
-        toolConfig: { includeServerSideToolInvocations: true },
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            matches: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  id: { type: Type.STRING },
-                  league: { type: Type.STRING },
-                  homeTeam: { type: Type.STRING },
-                  awayTeam: { type: Type.STRING },
-                  time: { type: Type.STRING },
-                  probabilities: {
-                    type: Type.OBJECT,
-                    properties: {
-                      homeWin: { type: Type.NUMBER },
-                      draw: { type: Type.NUMBER },
-                      awayWin: { type: Type.NUMBER },
-                      over15: { type: Type.NUMBER },
-                      over25: { type: Type.NUMBER },
-                      bothToScore: { type: Type.NUMBER },
-                    },
-                    required: ["homeWin", "draw", "awayWin", "over15", "over25", "bothToScore"]
-                  },
-                  confidence: { type: Type.NUMBER },
-                  volatility: { type: Type.STRING },
-                  valueIndicator: { type: Type.NUMBER },
-                  sourceUrl: { type: Type.STRING }
-                }
-              }
-            }
-          }
+    DO NOT include any other sports. Provide full probabilities and confidence scores. Output JSON in the exact schema:
+    {
+      "matches": [
+        {
+          "id": "string",
+          "league": "string",
+          "homeTeam": "string",
+          "awayTeam": "string",
+          "time": "string",
+          "probabilities": {
+            "homeWin": number,
+            "draw": number,
+            "awayWin": number,
+            "over15": number,
+            "over25": number,
+            "bothToScore": number
+          },
+          "confidence": number,
+          "volatility": "string",
+          "valueIndicator": number,
+          "sourceUrl": "string"
         }
-      },
-    });
+      ]
+    }`;
 
-    const parsed = JSON.parse(stripMarkdown(response.text || '{"matches":[]}'));
+    const system = "You are NEON-STAT, an elite quantitative sports betting AI. You analyze soccer matches with cold, calculated precision. You focus on data, form, and tactical mismatches.";
+
+    const responseText = await callHuggingFace(prompt, system, 0.2, DEFAULT_MODEL, true);
+    const parsed = JSON.parse(stripMarkdown(responseText) || '{"matches":[]}');
     const matches = (parsed.matches || []).map((m: any, index: number) => ({
       ...m,
       id: m.id || `live-${index}-${Date.now()}`,
       isPremium: index % 3 === 0
     })) as MatchAnalysis[];
 
-    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    const groundingSources = groundingChunks
-      .filter((chunk: any) => chunk.web)
-      .map((chunk: any) => ({ title: chunk.web.title, uri: chunk.web.uri }));
-
-    return { matches, groundingSources, usage: getUsage(response) };
+    // No grounding sources without search tool
+    return {
+      matches,
+      groundingSources: [],
+      usage: estimateUsage(responseText, system)
+    };
   } catch (error) {
+    console.error("fetchLiveMatches error:", error);
     return { matches: [], groundingSources: [] };
   }
 };
@@ -121,7 +139,6 @@ export const buildAITicket = async (risk: RiskLevel, matchCount: number, availab
 
     let context = "";
     if (availableMatches.length > 0) {
-      // Filter matches to ensure they are valid and upcoming
       const validMatches = availableMatches.slice(0, 30).map(m => ({
         teams: `${m.homeTeam} vs ${m.awayTeam}`,
         league: m.league,
@@ -136,74 +153,44 @@ export const buildAITicket = async (risk: RiskLevel, matchCount: number, availab
 
     const today = new Date().toISOString().split('T')[0];
     const prompt = `Act as a professional sports betting analyst. Build a high-performance SOCCER betting parlay ticket for today/tomorrow matches (Current Date: ${today}). 
-    CRITICAL: Use the Google Search tool to verify that these matches are REAL and actually happening today or tomorrow. DO NOT invent matches.
+    CRITICAL: Use your knowledge to verify that these matches are REAL and actually happening today or tomorrow. DO NOT invent matches.
     
     ${riskPrompt} 
     Number of soccer matches: ${matchCount}.
     ${context}
     
-    Analyze team form, head-to-head records, and key player injuries (using Google Search) to validate your selections.
+    Analyze team form, head-to-head records, and key player injuries (using your knowledge) to validate your selections.
     Ensure the selections are logically consistent and offer good value.
-    Output JSON.`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.1-pro-preview',
-      contents: prompt,
-      config: { 
-        systemInstruction: "You are NEON-STAT, an elite quantitative sports betting AI. You construct high-value parlays by finding hidden edges in the market. You are analytical, ruthless, and precise.",
-        temperature: 0.4,
-        tools: [{ googleSearch: {} }], 
-        toolConfig: { includeServerSideToolInvocations: true },
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING },
-            description: { type: Type.STRING },
-            totalProb: { type: Type.NUMBER },
-            slips: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  matchTitle: { type: Type.STRING },
-                  combinedProb: { type: Type.NUMBER },
-                  selections: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        label: { type: Type.STRING },
-                        prob: { type: Type.NUMBER }
-                      },
-                      required: ["label", "prob"]
-                    }
-                  }
-                },
-                required: ["matchTitle", "combinedProb", "selections"]
-              }
-            }
-          },
-          required: ["title", "description", "totalProb", "slips"]
-        }
-      }
-    });
-
-    const data = JSON.parse(stripMarkdown(response.text || "{}"));
-    const sanitizedTotalProb = typeof data.totalProb === 'number' && data.totalProb > 0 ? data.totalProb : 0.005;
     
-    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    const groundingSources = groundingChunks
-      .filter((chunk: any) => chunk.web)
-      .map((chunk: any) => ({ title: chunk.web.title, uri: chunk.web.uri }));
+    Output JSON in the exact schema:
+    {
+      "title": "string",
+      "description": "string",
+      "totalProb": number,
+      "slips": [
+        {
+          "matchTitle": "string",
+          "combinedProb": number,
+          "selections": [
+            { "label": "string", "prob": number }
+          ]
+        }
+      ]
+    }`;
 
-    return { 
-      id: `ai-${Date.now()}`, 
-      ...data, 
+    const system = "You are NEON-STAT, an elite quantitative sports betting AI. You construct high-value parlays by finding hidden edges in the market. You are analytical, ruthless, and precise.";
+
+    const responseText = await callHuggingFace(prompt, system, 0.4, TICKET_MODEL, true);
+    const data = JSON.parse(stripMarkdown(responseText) || "{}");
+    const sanitizedTotalProb = typeof data.totalProb === 'number' && data.totalProb > 0 ? data.totalProb : 0.005;
+
+    return {
+      id: `ai-${Date.now()}`,
+      ...data,
       totalProb: sanitizedTotalProb,
-      riskRating: risk, 
-      groundingSources, 
-      usage: getUsage(response) 
+      riskRating: risk,
+      groundingSources: [], // no search tool
+      usage: estimateUsage(responseText, system)
     };
   } catch (error) {
     console.error("AI Ticket Build Error:", error);
@@ -213,20 +200,16 @@ export const buildAITicket = async (risk: RiskLevel, matchCount: number, availab
 
 export const getQuantInsight = async (match: MatchAnalysis): Promise<string> => {
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash',
-      contents: `Perform a deep tactical SOCCER audit for the match: ${match.homeTeam} vs ${match.awayTeam}.
-      The calculated probabilities are: Home Win ${(match.probabilities.homeWin*100).toFixed(0)}%, Draw ${(match.probabilities.draw*100).toFixed(0)}%, Away Win ${(match.probabilities.awayWin*100).toFixed(0)}%.
-      Provide a concise, analytical summary explaining WHY these probabilities make sense, focusing on tactical mismatches, form, or injuries. Max 300 characters. No markdown.`,
-      config: { 
-        systemInstruction: "You are NEON-STAT, an elite quantitative sports betting AI. Provide cold, analytical, and highly technical tactical insights.",
-        temperature: 0.5,
-        tools: [{ googleSearch: {} }],
-        toolConfig: { includeServerSideToolInvocations: true }
-      }
-    });
-    return response.text || "Neural analysis stream inconclusive for this node.";
+    const prompt = `Perform a deep tactical SOCCER audit for the match: ${match.homeTeam} vs ${match.awayTeam}.
+    The calculated probabilities are: Home Win ${(match.probabilities.homeWin*100).toFixed(0)}%, Draw ${(match.probabilities.draw*100).toFixed(0)}%, Away Win ${(match.probabilities.awayWin*100).toFixed(0)}%.
+    Provide a concise, analytical summary explaining WHY these probabilities make sense, focusing on tactical mismatches, form, or injuries. Max 300 characters. No markdown.`;
+
+    const system = "You are NEON-STAT, an elite quantitative sports betting AI. Provide cold, analytical, and highly technical tactical insights.";
+
+    const responseText = await callHuggingFace(prompt, system, 0.5, DEFAULT_MODEL, false);
+    return responseText || "Neural analysis stream inconclusive for this node.";
   } catch (error) {
+    console.error("getQuantInsight error:", error);
     return "Neural link timeout. Tactical buffer empty.";
   }
 };
