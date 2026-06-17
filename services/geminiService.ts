@@ -4,7 +4,7 @@ import { MatchAnalysis, AITicket, RiskLevel, BuiltSlip, MatchFeed, LottoIntellig
 //  Hugging Face client (no external library, direct fetch)
 // ------------------------------------------------------------------
 
-const HF_API_KEY = process.env.HUGGINGFACE_API_KEY || "";
+const HF_API_KEY = process.env.HUGGINGFACE_API_KEY || "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";
 const HF_BASE_URL = "https://api-inference.huggingface.co/v1/chat/completions";
 
 // Default models
