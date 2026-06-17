@@ -1,0 +1,130 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEON-STAT | Mission Control</title>
+    <script src="https://cdn.tailwindcss.com?plugins=typography,aspect-ratio"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Plus Jakarta Sans', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
+            },
+            colors: {
+              obsidian: '#020617',
+              electric: '#00f2ff',
+              toxic: '#ccff00',
+              amethyst: '#bd00ff',
+            },
+            animation: {
+              'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'border-flow': 'borderFlow 3s linear infinite',
+              'data-stream': 'dataStream 20s linear infinite',
+            },
+            keyframes: {
+              borderFlow: {
+                '0%': { 'border-image-source': 'linear-gradient(90deg, #00f2ff, transparent, #bd00ff)' },
+                '50%': { 'border-image-source': 'linear-gradient(180deg, #bd00ff, #00f2ff, transparent)' },
+                '100%': { 'border-image-source': 'linear-gradient(270deg, transparent, #bd00ff, #00f2ff)' },
+              },
+              dataStream: {
+                '0%': { 'background-position': '0 0' },
+                '100%': { 'background-position': '0 1000px' },
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: #020617;
+            color: #f8fafc;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .mono { font-family: 'JetBrains Mono', monospace; }
+
+        /* Energy Border Component */
+        .energy-border {
+            position: relative;
+            border: 1px solid rgba(0, 242, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+        .energy-border:hover {
+            border-color: rgba(0, 242, 255, 0.5);
+            box-shadow: 0 0 20px rgba(0, 242, 255, 0.1);
+        }
+
+        /* Mission Control Glass */
+        .glass-terminal {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        /* Binary Background Stream */
+        .binary-overlay {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            opacity: 0.03;
+            background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCI+PHRleHQgeD0iMTAiIHk9IjIwIiBmaWxsPSIjZmZmIiBmb250LWZhbWlseT0ibW9ub3NwYWNlIiBmb250LXNpemU9IjgiPjAxMDE8L3RleHQ+PC9zdmc+');
+            animation: data-stream 60s linear infinite;
+            z-index: 0;
+        }
+
+        .cyber-grid {
+            background-size: 60px 60px;
+            background-image:
+                linear-gradient(to right, rgba(0, 242, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(0, 242, 255, 0.03) 1px, transparent 1px);
+        }
+
+        @keyframes scanline {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100%); }
+        }
+        .scanline {
+            width: 100%;
+            height: 100px;
+            background: linear-gradient(to bottom, transparent, rgba(0, 242, 255, 0.05), transparent);
+            position: absolute;
+            animation: scanline 8s linear infinite;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 3px; height: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(0, 242, 255, 0.2);
+            border-radius: 10px;
+        }
+
+        .text-glow-electric { text-shadow: 0 0 10px rgba(0, 242, 255, 0.5); }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://esm.sh/@google/genai@^1.37.0",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.48.1",
+    "recharts": "https://esm.sh/recharts@^3.6.0",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-obsidian text-slate-100 selection:bg-electric/30">
+    <div class="binary-overlay"></div>
+    <div id="root"></div>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
