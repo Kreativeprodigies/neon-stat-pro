@@ -1,22 +1,27 @@
-import { HfInference } from "@huggingface/inference";
 import { MatchAnalysis, AITicket, RiskLevel, BuiltSlip, MatchFeed, LottoIntelligence, AviatorFeed, MinesFeed, UsageMetadata } from "../types";
 
-// Initialize Hugging Face Inference client
-const hf = new HfInference(process.env.HUGGINGFACE_API_KEY || "");
+// ------------------------------------------------------------------
+//  Hugging Face client (no external library, direct fetch)
+// ------------------------------------------------------------------
 
-// Default model – can be overridden per use case
+const HF_API_KEY = process.env.HUGGINGFACE_API_KEY || "";
+const HF_BASE_URL = "https://api-inference.huggingface.co/v1/chat/completions";
+
+// Default models
 const DEFAULT_MODEL = "mistralai/Mistral-7B-Instruct-v0.3";
-// For heavier tasks use a larger model if available
 const TICKET_MODEL = "meta-llama/Llama-3.1-70B-Instruct"; // requires PRO subscription or higher
 
-// Helper: strip markdown code fences
+// ------------------------------------------------------------------
+//  Helpers
+// ------------------------------------------------------------------
+
 const stripMarkdown = (text: string) => {
   return text.replace(/```json\n?|\n?```/g, "").trim();
 };
 
-// Helper: estimate token usage (rough approximation)
+// Rough token estimation (4 chars per token)
 const estimateUsage = (text: string, system?: string): UsageMetadata => {
-  const promptTokens = (system?.length || 0) / 4 + 30; // crude
+  const promptTokens = (system?.length || 0) / 4 + 30;
   const completionTokens = text.length / 4;
   return {
     promptTokens: Math.round(promptTokens),
@@ -25,7 +30,10 @@ const estimateUsage = (text: string, system?: string): UsageMetadata => {
   };
 };
 
-// Generic call to Hugging Face text generation
+// ------------------------------------------------------------------
+//  Core Hugging Face chat completion call
+// ------------------------------------------------------------------
+
 async function callHuggingFace(
   userPrompt: string,
   systemInstruction?: string,
@@ -33,35 +41,60 @@ async function callHuggingFace(
   model: string = DEFAULT_MODEL,
   jsonResponse: boolean = true
 ): Promise<string> {
-  const messages: any[] = [];
+  if (!HF_API_KEY) {
+    throw new Error("HUGGINGFACE_API_KEY is not set in environment variables.");
+  }
+
+  // Build messages
+  const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [];
   if (systemInstruction) {
     messages.push({ role: "system", content: systemInstruction });
   }
-  messages.push({ role: "user", content: userPrompt });
-
-  // For JSON output, ask the model to respond only with valid JSON
+  // For JSON output, we append a strong directive to the user prompt
   const finalPrompt = jsonResponse
-    ? `${userPrompt}\n\nIMPORTANT: Output ONLY valid JSON, no other text.`
+    ? `${userPrompt}\n\nIMPORTANT: Output ONLY valid JSON, no other text, no markdown.`
     : userPrompt;
+  messages.push({ role: "user", content: finalPrompt });
+
+  const payload = {
+    model,
+    messages,
+    temperature,
+    max_tokens: 4096,
+    // Some models support response_format; we include it but it may be ignored
+    ...(jsonResponse ? { response_format: { type: "json_object" } } : {}),
+  };
 
   try {
-    const response = await hf.chatCompletion({
-      model,
-      messages: [
-        ...(systemInstruction ? [{ role: "system", content: systemInstruction }] : []),
-        { role: "user", content: finalPrompt },
-      ],
-      temperature,
-      max_tokens: 4096,
-      response_format: jsonResponse ? { type: "json_object" } : undefined, // supported by some models
+    const response = await fetch(HF_BASE_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${HF_API_KEY}`,
+      },
+      body: JSON.stringify(payload),
     });
 
-    return response.choices[0]?.message?.content || "";
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Hugging Face API error (${response.status}): ${errorText}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) {
+      throw new Error("Empty response from Hugging Face model");
+    }
+    return content;
   } catch (error) {
     console.error("Hugging Face call error:", error);
     throw error;
   }
 }
+
+// ------------------------------------------------------------------
+//  Exported functions (matching original signatures)
+// ------------------------------------------------------------------
 
 export const fetchLiveMatches = async (): Promise<MatchFeed> => {
   try {
@@ -114,7 +147,7 @@ export const fetchLiveMatches = async (): Promise<MatchFeed> => {
       isPremium: index % 3 === 0
     })) as MatchAnalysis[];
 
-    // No grounding sources without search tool
+    // Grounding sources not available without search tool
     return {
       matches,
       groundingSources: [],
@@ -214,7 +247,18 @@ export const getQuantInsight = async (match: MatchAnalysis): Promise<string> => 
   }
 };
 
-// Aviator, Lotto, and Mines intelligence functions retained in service but disabled in UI
-export const fetchLiveAviatorHistory = async (): Promise<AviatorFeed> => { throw new Error("Module Disabled"); };
-export const fetchLottoIntelligence = async (): Promise<LottoIntelligence> => { throw new Error("Module Disabled"); };
-export const fetchMinesIntelligence = async (mineCount: number): Promise<MinesFeed> => { throw new Error("Module Disabled"); };
+// ------------------------------------------------------------------
+//  Disabled legacy modules (kept for compatibility)
+// ------------------------------------------------------------------
+
+export const fetchLiveAviatorHistory = async (): Promise<AviatorFeed> => {
+  throw new Error("Module Disabled");
+};
+
+export const fetchLottoIntelligence = async (): Promise<LottoIntelligence> => {
+  throw new Error("Module Disabled");
+};
+
+export const fetchMinesIntelligence = async (mineCount: number): Promise<MinesFeed> => {
+  throw new Error("Module Disabled");
+};
