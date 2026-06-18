@@ -1,49 +1,20 @@
-import { createClient } from '@supabase/supabase-js';
 import { HistoryItem, MatchAnalysis, GameStatus } from '../types';
 
-// Connection details provided by the user
-const SUPABASE_URL = 'https://cpwdukeeahumcjadlmpm.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_PPT4QeblE6T5PTAWbDup-Q_GKYweAGx';
-
-// Create Supabase client
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-const logError = (context: string, error: any) => {
-  // Suppress network errors for invalid/paused Supabase projects to allow silent fallback
-  if (error?.message?.includes('Failed to fetch') || error?.message?.includes('NetworkError')) {
-    return;
-  }
-  console.error(`Supabase Error (${context}):`, error?.message || error);
-};
+const LOGS_KEY = 'neonstat_signal_logs';
+const MATCHES_KEY = 'neonstat_cached_matches';
+const CACHE_TIME_KEY = 'neonstat_matches_last_updated';
 
 /**
  * Persists a full signal log object. 
  */
 export const saveSignalLog = async (log: HistoryItem): Promise<boolean> => {
-  if (!supabase) return false;
   try {
-    const { error } = await supabase
-      .from('signal_logs')
-      .upsert({
-        id: log.id,
-        title: log.title,
-        description: log.description,
-        timestamp: log.timestamp,
-        status: log.status,
-        risk_rating: log.riskRating,
-        total_prob: log.totalProb,
-        grounding_sources: log.groundingSources, 
-        slips: log.slips,
-        payout_multiplier: log.payoutMultiplier
-      }, { onConflict: 'id' });
-    
-    if (error) {
-      logError('saveSignalLog', error);
-      return false;
-    }
+    const logs = await fetchSignalLogs();
+    const updated = [log, ...logs.filter(item => item.id !== log.id)];
+    localStorage.setItem(LOGS_KEY, JSON.stringify(updated));
     return true;
   } catch (err) {
-    logError('saveSignalLog Critical', err);
+    console.error(`Local Database Error (saveSignalLog):`, err);
     return false;
   }
 };
@@ -52,23 +23,18 @@ export const saveSignalLog = async (log: HistoryItem): Promise<boolean> => {
  * Updates status and slips for a specific log ID.
  */
 export const updateSignalLogStatus = async (id: string, status: GameStatus, slips: any[]): Promise<boolean> => {
-  if (!supabase) return false;
   try {
-    const { error } = await supabase
-      .from('signal_logs')
-      .update({ 
-        status, 
-        slips
-      })
-      .eq('id', id);
-    
-    if (error) {
-      logError('updateSignalLogStatus', error);
-      return false;
-    }
+    const logs = await fetchSignalLogs();
+    const updated = logs.map(item => {
+      if (item.id === id) {
+        return { ...item, status, slips };
+      }
+      return item;
+    });
+    localStorage.setItem(LOGS_KEY, JSON.stringify(updated));
     return true;
   } catch (err) {
-    logError('updateSignalLogStatus Critical', err);
+    console.error(`Local Database Error (updateSignalLogStatus):`, err);
     return false;
   }
 };
@@ -77,32 +43,12 @@ export const updateSignalLogStatus = async (id: string, status: GameStatus, slip
  * Fetches all signal logs.
  */
 export const fetchSignalLogs = async (): Promise<HistoryItem[]> => {
-  if (!supabase) return [];
   try {
-    const { data, error } = await supabase
-      .from('signal_logs')
-      .select('*')
-      .order('timestamp', { ascending: false });
-    
-    if (error) {
-      logError('fetchSignalLogs', error);
-      return [];
-    }
-    
-    return (data || []).map(row => ({
-      id: row.id,
-      title: row.title,
-      description: row.description,
-      timestamp: row.timestamp,
-      status: row.status as GameStatus,
-      riskRating: row.risk_rating,
-      totalProb: row.total_prob,
-      groundingSources: typeof row.grounding_sources === 'string' ? JSON.parse(row.grounding_sources) : row.grounding_sources,
-      slips: typeof row.slips === 'string' ? JSON.parse(row.slips) : row.slips,
-      payoutMultiplier: row.payout_multiplier
-    }));
+    const stored = localStorage.getItem(LOGS_KEY);
+    if (!stored) return [];
+    return JSON.parse(stored) as HistoryItem[];
   } catch (err) {
-    logError('fetchSignalLogs Critical', err);
+    console.error(`Local Database Error (fetchSignalLogs):`, err);
     return [];
   }
 };
@@ -111,20 +57,13 @@ export const fetchSignalLogs = async (): Promise<HistoryItem[]> => {
  * Deletes a log.
  */
 export const deleteSignalLog = async (id: string): Promise<boolean> => {
-  if (!supabase) return false;
   try {
-    const { error } = await supabase
-      .from('signal_logs')
-      .delete()
-      .eq('id', id);
-    
-    if (error) {
-      logError('deleteSignalLog', error);
-      return false;
-    }
+    const logs = await fetchSignalLogs();
+    const updated = logs.filter(item => item.id !== id);
+    localStorage.setItem(LOGS_KEY, JSON.stringify(updated));
     return true;
   } catch (err) {
-    logError('deleteSignalLog Critical', err);
+    console.error(`Local Database Error (deleteSignalLog):`, err);
     return false;
   }
 };
@@ -133,79 +72,38 @@ export const deleteSignalLog = async (id: string): Promise<boolean> => {
  * Sports Data Caching with 6-hour TTL logic handled in App.tsx
  */
 export const getCachedMatches = async (): Promise<{ matches: MatchAnalysis[], lastUpdated: string | null }> => {
-  if (!supabase) return { matches: [], lastUpdated: null };
   try {
-    const { data, error } = await supabase
-      .from('cached_matches')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const storedMatches = localStorage.getItem(MATCHES_KEY);
+    const lastUpdated = localStorage.getItem(CACHE_TIME_KEY);
     
-    if (error) {
-      logError('getCachedMatches', error);
+    if (!storedMatches) {
       return { matches: [], lastUpdated: null };
     }
     
-    if (!data || data.length === 0) return { matches: [], lastUpdated: null };
-
-    const matches = data.map(row => ({
-      id: row.id,
-      league: row.league,
-      homeTeam: row.home_team,
-      awayTeam: row.away_team,
-      time: row.match_time,
-      probabilities: typeof row.probabilities === 'string' ? JSON.parse(row.probabilities) : row.probabilities,
-      confidence: row.confidence,
-      volatility: row.volatility,
-      valueIndicator: row.value_indicator,
-      sourceUrl: row.source_url,
-      isPremium: row.is_premium
-    })) as MatchAnalysis[];
-
-    return { matches, lastUpdated: data[0].created_at };
+    return {
+      matches: JSON.parse(storedMatches) as MatchAnalysis[],
+      lastUpdated
+    };
   } catch (err) {
-    logError('getCachedMatches Critical', err);
+    console.error(`Local Database Error (getCachedMatches):`, err);
     return { matches: [], lastUpdated: null };
   }
 };
 
 export const clearMatchCache = async (): Promise<void> => {
-  if (!supabase) return;
   try {
-    const { error } = await supabase
-      .from('cached_matches')
-      .delete()
-      .neq('id', 'placeholder_to_match_all');
-    if (error) throw error;
+    localStorage.removeItem(MATCHES_KEY);
+    localStorage.removeItem(CACHE_TIME_KEY);
   } catch (err) {
-    logError('clearMatchCache', err);
+    console.error(`Local Database Error (clearMatchCache):`, err);
   }
 };
 
 export const saveMatchesToCache = async (matches: MatchAnalysis[]): Promise<void> => {
-  if (!supabase || matches.length === 0) return;
   try {
-    const rows = matches.map(m => ({
-      id: m.id,
-      league: m.league,
-      home_team: m.homeTeam,
-      away_team: m.awayTeam,
-      match_time: m.time,
-      probabilities: m.probabilities,
-      confidence: m.confidence,
-      volatility: m.volatility,
-      value_indicator: m.valueIndicator,
-      source_url: m.sourceUrl,
-      is_premium: m.isPremium
-    }));
-
-    const { error } = await supabase
-      .from('cached_matches')
-      .upsert(rows, { onConflict: 'id' });
-    
-    if (error) {
-      logError('saveMatchesToCache', error);
-    }
+    localStorage.setItem(MATCHES_KEY, JSON.stringify(matches));
+    localStorage.setItem(CACHE_TIME_KEY, new Date().toISOString());
   } catch (err) {
-    logError('saveMatchesToCache Critical', err);
+    console.error(`Local Database Error (saveMatchesToCache):`, err);
   }
 };
