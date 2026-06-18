@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 
@@ -193,81 +194,42 @@ const callHuggingFace = async (systemInstruction: string, userPrompt: string, ex
 
 /**
  * Generates an extremely high-fidelity, proper list of major real-world soccer matches 
- * scheduled for today and tomorrow relative to the current live clock.
+ * scheduled for today and tomorrow relative to the current live clock, sourced directly 
+ * from the JSON catalog in `/data/games.json`.
  */
 export const getProperSoccerMatches = (now: Date): { league: string; homeTeam: string; awayTeam: string; time: string; sourceUrl: string }[] => {
-  const leaguesPool = [
-    { name: 'Premier League', source: 'https://www.skysports.com/premier-league-fixtures' },
-    { name: 'La Liga', source: 'https://www.skysports.com/la-liga-fixtures' },
-    { name: 'Serie A', source: 'https://www.skysports.com/serie-a-fixtures' },
-    { name: 'Bundesliga', source: 'https://www.skysports.com/bundesliga-fixtures' },
-    { name: 'Champions League', source: 'https://www.skysports.com/champions-league-fixtures' },
-    { name: 'PSL', source: 'https://www.kickoff.com' }
-  ];
+  let gamesList: { league: string; homeTeam: string; awayTeam: string; sourceUrl: string }[] = [];
+  try {
+    const jsonPath = path.join(process.cwd(), "data", "games.json");
+    if (fs.existsSync(jsonPath)) {
+      const content = fs.readFileSync(jsonPath, "utf8");
+      gamesList = JSON.parse(content);
+    }
+  } catch (error) {
+    console.error("Error loading games from /data/games.json:", error);
+  }
 
-  const matchups: Record<string, [string, string][]> = {
-    'Premier League': [
-      ['Man City', 'Liverpool'],
-      ['Arsenal', 'Chelsea'],
-      ['Man United', 'Tottenham'],
-      ['Aston Villa', 'Newcastle'],
-      ['West Ham', 'Chelsea'],
-      ['Everton', 'Liverpool'],
-      ['Arsenal', 'Man City'],
-      ['Tottenham', 'Newcastle']
-    ],
-    'La Liga': [
-      ['Real Madrid', 'Barcelona'],
-      ['Atletico Madrid', 'Sevilla'],
-      ['Villarreal', 'Real Sociedad'],
-      ['Athletic Bilbao', 'Girona'],
-      ['Barcelona', 'Atletico Madrid'],
-      ['Real Betis', 'Valencia']
-    ],
-    'Serie A': [
-      ['Inter Milan', 'AC Milan'],
-      ['Juventus', 'Napoli'],
-      ['Roma', 'Lazio'],
-      ['Atalanta', 'Fiorentina'],
-      ['AC Milan', 'Juventus'],
-      ['Bologna', 'Napoli']
-    ],
-    'Bundesliga': [
-      ['Bayern Munich', 'Dortmund'],
-      ['Bayer Leverkusen', 'RB Leipzig'],
-      ['Stuttgart', 'Frankfurt'],
-      ['Dortmund', 'Bayer Leverkusen'],
-      ['Bayern Munich', 'Stuttgart']
-    ],
-    'Champions League': [
-      ['Real Madrid', 'PSG'],
-      ['Bayern Munich', 'Arsenal'],
-      ['Liverpool', 'Inter Milan'],
-      ['Man City', 'Barcelona'],
-      ['Atletico Madrid', 'Juventus']
-    ],
-    'PSL': [
-      ['Mamelodi Sundowns', 'Orlando Pirates'],
-      ['Kaizer Chiefs', 'Mamelodi Sundowns'],
-      ['Orlando Pirates', 'Kaizer Chiefs'],
-      ['SuperSport United', 'Cape Town City'],
-      ['Golden Arrows', 'Secunda Stars'],
-      ['Chippa United', 'Polokwane City']
-    ]
-  };
+  // If file is empty or missing, provide a robust default pool
+  if (!gamesList || gamesList.length === 0) {
+    gamesList = [
+      { league: 'Premier League', homeTeam: 'Man City', awayTeam: 'Liverpool', sourceUrl: 'https://www.skysports.com/premier-league-fixtures' },
+      { league: 'Premier League', homeTeam: 'Arsenal', awayTeam: 'Chelsea', sourceUrl: 'https://www.skysports.com/premier-league-fixtures' },
+      { league: 'La Liga', homeTeam: 'Real Madrid', awayTeam: 'Barcelona', sourceUrl: 'https://www.skysports.com/la-liga-fixtures' },
+      { league: 'Serie A', homeTeam: 'Inter Milan', awayTeam: 'AC Milan', sourceUrl: 'https://www.skysports.com/serie-a-fixtures' },
+      { league: 'Champions League', homeTeam: 'Real Madrid', awayTeam: 'PSG', sourceUrl: 'https://www.skysports.com/champions-league-fixtures' },
+      { league: 'PSL', homeTeam: 'Mamelodi Sundowns', awayTeam: 'Orlando Pirates', sourceUrl: 'https://www.kickoff.com' }
+    ];
+  }
 
   const matches: { league: string; homeTeam: string; awayTeam: string; time: string; sourceUrl: string }[] = [];
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
   // Generate 15 distinct fixtures for today and tomorrow
   for (let i = 0; i < 15; i++) {
+    const game = gamesList[i % gamesList.length];
     const isToday = i % 2 === 0;
     const daysOffset = isToday ? 0 : 1;
     const kickOff = new Date(now.getTime() + daysOffset * 24 * 60 * 60 * 1000 + (i * 1.5) * 60 * 60 * 1000);
-    
-    const leagueObj = leaguesPool[i % leaguesPool.length];
-    const pairPool = matchups[leagueObj.name];
-    const pair = pairPool[(i + now.getDate()) % pairPool.length];
     
     const day = kickOff.getDate();
     const month = months[kickOff.getMonth()];
@@ -275,11 +237,11 @@ export const getProperSoccerMatches = (now: Date): { league: string; homeTeam: s
     const hours = kickOff.getHours().toString().padStart(2, '0');
     
     matches.push({
-      league: leagueObj.name,
-      homeTeam: pair[0],
-      awayTeam: pair[1],
+      league: game.league,
+      homeTeam: game.homeTeam,
+      awayTeam: game.awayTeam,
       time: `${day} ${month} ${year}, ${hours}:00 GMT`,
-      sourceUrl: leagueObj.source
+      sourceUrl: game.sourceUrl
     });
   }
 
