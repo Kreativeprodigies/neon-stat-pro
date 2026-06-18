@@ -4,109 +4,90 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NEON-STAT | Mission Control</title>
+    <title>PROSTAT™ // Intelligence Engine</title>
     <script src="https://cdn.tailwindcss.com?plugins=typography,aspect-ratio"></script>
     <script>
       tailwind.config = {
         theme: {
           extend: {
             fontFamily: {
-              sans: ['Plus Jakarta Sans', 'sans-serif'],
-              mono: ['JetBrains Mono', 'monospace'],
+              sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+              mono: ['SF Mono', 'JetBrains Mono', 'Fira Code', 'monospace'],
             },
             colors: {
-              obsidian: '#020617',
-              electric: '#00f2ff',
-              toxic: '#ccff00',
-              amethyst: '#bd00ff',
+              obsidian: '#09090b', // Zinc 950
+              darkcard: '#18181b', // Zinc 900
+              darkborder: '#27272a', // Zinc 800
+              electric: '#635bff', // Stripe Indigo
+              spotify: '#1ed760',  // Spotify Green
+              apple: '#f5f5f7',    // Apple Silver
+              lightgray: '#a1a1aa' // Zinc 400
             },
             animation: {
-              'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-              'border-flow': 'borderFlow 3s linear infinite',
-              'data-stream': 'dataStream 20s linear infinite',
+              'fade-in': 'fadeIn 0.4s ease-out',
+              'shimmer': 'shimmer 2.5s infinite linear',
             },
             keyframes: {
-              borderFlow: {
-                '0%': { 'border-image-source': 'linear-gradient(90deg, #00f2ff, transparent, #bd00ff)' },
-                '50%': { 'border-image-source': 'linear-gradient(180deg, #bd00ff, #00f2ff, transparent)' },
-                '100%': { 'border-image-source': 'linear-gradient(270deg, transparent, #bd00ff, #00f2ff)' },
+              fadeIn: {
+                '0%': { opacity: '0', transform: 'translateY(4px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' }
               },
-              dataStream: {
-                '0%': { 'background-position': '0 0' },
-                '100%': { 'background-position': '0 1000px' },
+              shimmer: {
+                '0%': { 'background-position': '-200% 0' },
+                '100%': { 'background-position': '200% 0' }
               }
             }
           }
         }
       }
     </script>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         body {
-            background-color: #020617;
-            color: #f8fafc;
-            overflow-x: hidden;
+            background-color: #09090b;
+            color: #f4f4f5;
             -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            overflow-x: hidden;
         }
 
-        .mono { font-family: 'JetBrains Mono', monospace; }
-
-        /* Energy Border Component */
-        .energy-border {
-            position: relative;
-            border: 1px solid rgba(0, 242, 255, 0.1);
-            transition: all 0.3s ease;
+        /* Smooth scrollbars in the spirit of Spotify & Vercel */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
         }
-        .energy-border:hover {
-            border-color: rgba(0, 242, 255, 0.5);
-            box-shadow: 0 0 20px rgba(0, 242, 255, 0.1);
+        ::-webkit-scrollbar-track {
+            background: #09090b;
         }
-
-        /* Mission Control Glass */
-        .glass-terminal {
-            background: rgba(15, 23, 42, 0.6);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.05);
+        ::-webkit-scrollbar-thumb {
+            background: #27272a;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3f3f46;
         }
 
-        /* Binary Background Stream */
-        .binary-overlay {
-            position: fixed;
-            inset: 0;
-            pointer-events: none;
-            opacity: 0.03;
-            background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCI+PHRleHQgeD0iMTAiIHk9IjIwIiBmaWxsPSIjZmZmIiBmb250LWZhbWlseT0ibW9ub3NwYWNlIiBmb250LXNpemU9IjgiPjAxMDE8L3RleHQ+PC9zdmc+');
-            animation: data-stream 60s linear infinite;
-            z-index: 0;
+        /* Subtle grid background similar to Vercel/Stripe */
+        .grid-bg {
+            background-size: 24px 24px;
+            background-image: 
+                linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
         }
 
-        .cyber-grid {
-            background-size: 60px 60px;
-            background-image:
-                linear-gradient(to right, rgba(0, 242, 255, 0.03) 1px, transparent 1px),
-                linear-gradient(to bottom, rgba(0, 242, 255, 0.03) 1px, transparent 1px);
+        /* Subtle radial ambient gradient */
+        .radial-glow {
+            background: radial-gradient(circle 800px at 50% -200px, rgba(99, 91, 255, 0.08), transparent 80%);
         }
 
-        @keyframes scanline {
-            0% { transform: translateY(-100%); }
-            100% { transform: translateY(100%); }
+        /* Clean utilities */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
         }
-        .scanline {
-            width: 100%;
-            height: 100px;
-            background: linear-gradient(to bottom, transparent, rgba(0, 242, 255, 0.05), transparent);
-            position: absolute;
-            animation: scanline 8s linear infinite;
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
         }
-
-        .custom-scrollbar::-webkit-scrollbar { width: 3px; height: 3px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: rgba(0, 242, 255, 0.2);
-            border-radius: 10px;
-        }
-
-        .text-glow-electric { text-shadow: 0 0 10px rgba(0, 242, 255, 0.5); }
     </style>
 <script type="importmap">
 {
@@ -119,11 +100,11 @@
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
 </head>
-<body class="bg-obsidian text-slate-100 selection:bg-electric/30">
-    <div class="binary-overlay"></div>
-    <div id="root"></div>
+<body class="bg-obsidian text-zinc-100 selection:bg-electric/20 antialiased">
+    <div class="fixed inset-0 grid-bg pointer-events-none opacity-80 z-0"></div>
+    <div class="fixed inset-0 radial-glow pointer-events-none z-0"></div>
+    <div id="root" class="relative z-10 min-h-screen"></div>
 <script type="module" src="/index.tsx"></script>
 </body>
 </html>

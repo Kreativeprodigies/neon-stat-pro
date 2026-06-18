@@ -10,6 +10,9 @@ import AITicketBuilder from './components/Dashboard/AITicketBuilder';
 import HistoryView from './components/Dashboard/HistoryView';
 import PredictionsCard from './components/Dashboard/PredictionsCard';
 import DocsView from './components/Dashboard/DocsView';
+import AviatorPredictor from './components/Dashboard/AviatorPredictor';
+import MinesPredictor from './components/Dashboard/MinesPredictor';
+import LottoTool from './components/Dashboard/LottoTool';
 
 // Helper function to format dates for the terminal UI
 export const formatTerminalDate = (date: Date | string | null | undefined) => {
@@ -110,6 +113,9 @@ const App: React.FC = () => {
   const navItems = [
     { id: 'sports', label: 'Telemetry', icon: Icons.Sports },
     { id: 'ai-architect', label: 'Architect', icon: Icons.Hex },
+    { id: 'aviator', label: 'Aviator', icon: Icons.Aviator },
+    { id: 'mines', label: 'Mines', icon: Icons.Mines },
+    { id: 'lotto', label: 'Lotto', icon: Icons.Lotto },
     { id: 'history', label: 'Archive', icon: Icons.Dashboard },
     { id: 'docs', label: 'Manual', icon: Icons.Lock },
   ];
@@ -122,35 +128,51 @@ const App: React.FC = () => {
   // Login screen
   if (view === 'auth') {
     return (
-      <div className="min-h-screen bg-obsidian flex items-center justify-center p-6 relative overflow-hidden text-slate-100 selection:bg-electric/30">
-        <div className="absolute inset-0 cyber-grid opacity-20" />
-        <div className="absolute inset-0 bg-gradient-to-t from-electric/5 to-transparent" />
-        <div className="relative z-10 w-full max-w-md">
-          <div className="glass-terminal p-10 rounded-2xl border border-electric/10 shadow-2xl space-y-8">
-            <div className="text-center space-y-4">
-              <div className="inline-flex p-4 bg-electric/10 rounded-xl border border-electric/20 text-electric animate-float">
-                <Icons.Hex className="w-10 h-10" />
+      <div className="min-h-screen bg-obsidian flex items-center justify-center p-6 relative overflow-hidden select-none">
+        <div className="relative z-10 w-full max-w-sm">
+          <div className="bg-zinc-900/40 backdrop-blur-3xl p-8 rounded-2xl border border-zinc-800 shadow-[2xl] space-y-6">
+            <div className="text-center space-y-2">
+              <div className="inline-flex p-3 bg-zinc-800/50 rounded-xl border border-zinc-700/50 text-white mb-2">
+                <Icons.Hex className="w-6 h-6 text-zinc-300" />
               </div>
               <div>
-                <h1 className="text-3xl font-black uppercase tracking-tighter italic text-glow-electric">NEON-STAT</h1>
-                <p className="text-[10px] mono text-slate-500 uppercase tracking-widest font-bold">Secure Uplink v4.8</p>
+                <h1 className="text-xl font-medium tracking-tight text-white font-sans">ProStat™</h1>
+                <p className="text-[11px] font-mono text-zinc-500 uppercase tracking-widest">INTELLIGENCE TERMINAL</p>
               </div>
             </div>
+            
             <form onSubmit={handleLogin} className="space-y-4">
-              <div className="relative">
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider block">Access Key</label>
                 <input 
                   type="password"
-                  placeholder="ENCRYPTED_KEY"
+                  placeholder="••••••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-6 py-4 text-white placeholder-slate-700 outline-none focus:border-electric/50 font-mono text-sm"
+                  className="w-full bg-zinc-950/80 border border-zinc-800 rounded-lg px-4 py-3 text-white placeholder-zinc-700 outline-none focus:border-zinc-500 transition-colors duration-200 font-mono text-sm text-center"
+                  autoFocus
                 />
               </div>
-              {error && <p className="text-[9px] text-red-500 font-black uppercase tracking-widest text-center">{error}</p>}
-              <button type="submit" className="w-full bg-electric text-slate-950 py-4 rounded-xl font-black uppercase tracking-widest hover:brightness-110 transition-all text-sm shadow-[0_0_20px_rgba(0,242,255,0.3)]">
-                Connect Session
+              
+              {error && (
+                <p className="text-[10px] text-red-400 font-mono tracking-wide text-center bg-red-950/20 py-1.5 rounded border border-red-900/30">
+                  {error}
+                </p>
+              )}
+              
+              <button 
+                type="submit" 
+                className="w-full bg-white hover:bg-zinc-200 text-black py-3 rounded-lg font-medium text-xs tracking-wider uppercase transition-all duration-200 shadow-sm"
+              >
+                Authenticate Sequence
               </button>
             </form>
+
+            <div className="text-center pt-2">
+              <p className="text-[9px] font-mono text-zinc-600 uppercase tracking-widest">
+                Protected by industrial-grade security keys
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -159,83 +181,89 @@ const App: React.FC = () => {
 
   // Dashboard layout
   return (
-    <div className="h-screen w-full bg-obsidian flex flex-col lg:flex-row text-slate-100 font-sans overflow-hidden">
-      <div className="absolute inset-0 binary-overlay opacity-[0.05] pointer-events-none" />
-      <div className="absolute inset-0 cyber-grid opacity-[0.03] pointer-events-none" />
+    <div className="h-screen w-full bg-obsidian flex flex-col lg:flex-row text-zinc-100 font-sans overflow-hidden relative">
       
-      {/* Sidebar Navigation */}
-      <aside className={`fixed inset-y-0 left-0 w-20 bg-slate-950/80 backdrop-blur-3xl border-r border-white/5 flex flex-col items-center py-8 z-[150] transition-transform lg:relative lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="text-electric mb-12 animate-pulse"><Icons.Hex className="w-8 h-8" /></div>
-        <nav className="flex-1 space-y-6">
+      {/* Sidebar Navigation - Apple/Spotify Minimal Style */}
+      <aside className={`fixed inset-y-0 left-0 w-20 bg-zinc-900/60 backdrop-blur-2xl border-r border-zinc-800/80 flex flex-col items-center py-6 z-[150] transition-transform lg:relative lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="text-zinc-400 mb-8 shrink-0">
+          <Icons.Hex className="w-7 h-7 text-white stroke-[1.5]" />
+        </div>
+        <nav className="flex-1 w-full overflow-y-auto no-scrollbar flex flex-col items-center space-y-4 py-2">
           {navItems.map(item => (
             <button
               key={item.id}
               onClick={() => handleNavClick(item.id)}
-              className={`p-4 rounded-xl transition-all group relative ${dashTab === item.id ? 'bg-electric/10 text-electric' : 'text-slate-600 hover:text-white'}`}
+              className={`p-3.5 rounded-lg transition-all duration-200 group relative shrink-0 ${dashTab === item.id ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-200'}`}
               title={item.label}
             >
-              <item.icon className={`w-6 h-6 transition-transform group-hover:scale-110 ${dashTab === item.id ? 'drop-shadow-[0_0_8px_#00f2ff]' : ''}`} />
+              <item.icon className="w-5 h-5 transition-transform group-hover:scale-105" />
               {dashTab === item.id && (
-                <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-1 h-8 bg-electric rounded-r-full shadow-[0_0_15px_#00f2ff]" />
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 bg-white rounded-r-sm" />
               )}
             </button>
           ))}
         </nav>
         <button 
           onClick={() => { setView('auth'); setIsSidebarOpen(false); }} 
-          className="p-4 text-slate-700 hover:text-red-500 transition-colors"
+          className="p-4 text-zinc-600 hover:text-red-400 transition-colors duration-200 shrink-0"
           title="Logout"
         >
-          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+          <svg className="w-5 h-5 stroke-[1.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
         </button>
       </aside>
 
       {/* Main Container */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        {/* Header Bar */}
-        <header className="h-20 border-b border-white/5 flex items-center justify-between px-8 bg-slate-950/40 backdrop-blur-xl shrink-0 z-10">
+        {/* Header Bar - Clear, minimalist line */}
+        <header className="h-16 border-b border-zinc-800/80 bg-zinc-900/30 backdrop-blur-2xl flex items-center justify-between px-8 shrink-0 z-10 select-none">
           <div className="flex items-center gap-4">
-            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-slate-400 hover:text-white transition-colors">
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-zinc-400 hover:text-zinc-200 transition-colors">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
             </button>
-            <h2 className="text-xl font-black italic uppercase text-white tracking-tight">
+            <h2 className="text-sm font-medium tracking-wide text-white uppercase font-mono">
               {navItems.find(n => n.id === dashTab)?.label}
             </h2>
           </div>
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4">
             <div className="hidden sm:flex flex-col items-end">
-              <p className="text-[10px] mono text-slate-500 font-black uppercase tracking-widest">Neural Load</p>
-              <p className="text-sm font-black text-electric italic">{sessionTokens.toLocaleString()} TOKENS</p>
+              <p className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider">AI Operations Limit</p>
+              <p className="text-xs font-mono text-zinc-300">{sessionTokens.toLocaleString()} tokens utilized</p>
             </div>
             <button 
               onClick={() => syncLiveFeed(true)} 
               disabled={isFetchingLive}
-              className={`p-3 rounded-xl bg-white/5 border border-white/10 hover:border-electric/30 transition-all ${isFetchingLive ? 'animate-pulse text-electric' : 'text-slate-400 hover:text-white'}`}
+              className={`p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 transition-all duration-200 ${isFetchingLive ? 'animate-pulse text-zinc-400' : 'text-zinc-400 hover:text-zinc-100'}`}
+              title="Refresh Global Stream"
             >
-              <Icons.Sync className={`w-5 h-5 ${isFetchingLive ? 'animate-spin' : ''}`} />
+              <Icons.Sync className={`w-4 h-4 ${isFetchingLive ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </header>
 
         {/* View Switcher */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-8 lg:p-12 relative">
+        <div className="flex-1 overflow-y-auto p-8 lg:p-12 relative">
           {dashTab === 'sports' && (
             <div className="space-y-12">
-               {/* Alpha Node Spotlight */}
+                {/* Spotlight Banner - Apple/Stripe Elegant Hero Card */}
                {spotlightMatch && (
-                  <div className="relative glass-terminal rounded-[40px] border border-electric/20 p-10 overflow-hidden group">
-                    <div className="scanline" />
-                    <div className="relative z-10 flex flex-col lg:flex-row justify-between items-center gap-10">
+                  <div className="relative bg-gradient-to-br from-zinc-900 to-zinc-950 rounded-2xl border border-zinc-800 p-8 overflow-hidden">
+                    <div className="absolute right-0 top-0 w-64 h-64 bg-zinc-700/5 rounded-full filter blur-3xl pointer-events-none" />
+                    <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
                        <div className="space-y-4">
-                          <span className="px-4 py-1 bg-electric/10 border border-electric/30 text-electric rounded-full text-[10px] mono font-black uppercase tracking-widest">Alpha_Node_Spotlight</span>
-                          <h3 className="text-4xl lg:text-6xl font-black italic uppercase text-white tracking-tighter leading-none">
-                            {spotlightMatch.homeTeam} <span className="text-slate-700 mx-4">VS</span> {spotlightMatch.awayTeam}
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-zinc-800/40 border border-zinc-700/60 text-zinc-300 rounded-full text-[10px] font-mono uppercase tracking-wider">
+                            <span className="w-1.5 h-1.5 rounded-full bg-spotify animate-pulse" />
+                            Prime Statistical Convergence
+                          </div>
+                          <h3 className="text-3xl md:text-4xl font-medium tracking-tight text-white font-sans">
+                            {spotlightMatch.homeTeam} <span className="text-zinc-600 font-light mx-2">vs</span> {spotlightMatch.awayTeam}
                           </h3>
-                          <p className="text-slate-400 font-medium italic">&gt; Strategic market convergence detected in {spotlightMatch.league}.</p>
+                          <p className="text-zinc-400 text-xs font-sans tracking-wide max-w-xl">
+                            High confidence predictive alignment identified within {spotlightMatch.league}. Signals indicate low-variance probability dispersion.
+                          </p>
                        </div>
-                       <div className="text-center lg:text-right shrink-0">
-                          <p className="text-[10px] mono text-slate-500 font-black uppercase tracking-[0.4em] mb-2">Neural confidence</p>
-                          <p className="text-6xl lg:text-8xl font-black italic text-electric tracking-tighter drop-shadow-[0_0_30px_rgba(0,242,255,0.3)]">
+                       <div className="md:text-right shrink-0">
+                          <p className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest mb-1">PROBABILISTIC DENSITY</p>
+                          <p className="text-5xl font-mono text-white tracking-tighter">
                             {Math.round(spotlightMatch.confidence)}%
                           </p>
                        </div>
@@ -243,18 +271,18 @@ const App: React.FC = () => {
                   </div>
                )}
 
-               {/* League Selector */}
-               <div className="flex flex-wrap items-center gap-4">
-                  {['All Leagues', ...LEAGUES].map(league => (
-                    <button
-                      key={league}
-                      onClick={() => setSelectedLeague(league)}
-                      className={`px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${selectedLeague === league ? 'bg-electric text-slate-950 border-electric shadow-[0_0_15px_rgba(0,242,255,0.3)]' : 'bg-white/5 border-white/5 text-slate-500 hover:text-white'}`}
-                    >
-                      {league}
-                    </button>
-                  ))}
-               </div>
+               {/* League Selector - Modern Minimalist Vercel Pills */}
+                <div className="flex flex-wrap items-center gap-2">
+                   {['All Leagues', ...LEAGUES].map(league => (
+                     <button
+                       key={league}
+                       onClick={() => setSelectedLeague(league)}
+                       className={`px-4 py-1.5 rounded-lg text-xs tracking-wide transition-all duration-200 border ${selectedLeague === league ? 'bg-white text-zinc-950 border-white font-medium shadow-sm' : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'}`}
+                     >
+                       {league}
+                     </button>
+                   ))}
+                </div>
 
                {/* Tactical Predictions Feed */}
                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 pb-20">
@@ -275,6 +303,18 @@ const App: React.FC = () => {
                 setDashTab('history');
               }
             }} />
+          )}
+
+          {dashTab === 'aviator' && (
+            <AviatorPredictor userRole={user.role} />
+          )}
+
+          {dashTab === 'mines' && (
+            <MinesPredictor />
+          )}
+
+          {dashTab === 'lotto' && (
+            <LottoTool />
           )}
 
           {dashTab === 'history' && (
