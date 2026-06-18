@@ -1,4 +1,3 @@
-import { GoogleGenAI } from "@google/genai";
 import express from "express";
 import path from "path";
 import fs from "fs";
@@ -72,51 +71,10 @@ const estimateUsage = (prompt: string, response: string): UsageMetadata => {
   };
 };
 
-// Initialize official Gemini API Client with required User-Agent
-const aiClient = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
-    }
-  }
-});
-
 /**
- * Calls Gemini server-side AI processor first with robust model fallback,
- * then falls back to resilient Hugging Face models if Gemini fails completely.
+ * Calls resilient Hugging Face models directly.
  */
 const callHuggingFace = async (systemInstruction: string, userPrompt: string, expectedJsonResponse = true): Promise<string> => {
-  if (process.env.GEMINI_API_KEY) {
-    const geminiModels = [
-      "gemini-2.5-flash",
-      "gemini-2.5-pro",
-      "gemini-2.0-flash"
-    ];
-
-    for (const modelName of geminiModels) {
-      try {
-        console.log(`Routing query via Gemini server-side AI processor (${modelName})...`);
-        const response = await aiClient.models.generateContent({
-          model: modelName,
-          contents: userPrompt,
-          config: {
-            systemInstruction,
-            temperature: 0.2,
-            ...(expectedJsonResponse ? { responseMimeType: "application/json" } : {}),
-          }
-        });
-
-        if (response && response.text) {
-          console.log(`Gemini query successful on model: ${modelName}`);
-          return response.text;
-        }
-      } catch (gemError) {
-        console.log(`Gemini query failed on model ${modelName}:`, gemError instanceof Error ? gemError.message : gemError);
-      }
-    }
-  }
-
   const token = process.env.HF_TOKEN || process.env.GEMINI_API_KEY || "";
   const models = [
     "Qwen/Qwen2.5-Coder-7B-Instruct",
